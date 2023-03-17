@@ -73,5 +73,14 @@ impl Summary for Tweet {
 }
 
 pub trait Summary {
-    fn summarize(&self) -> String;
+    // Default behavior
+	fn summarize(&self) -> String {
+		String::from("(Read more...)")
+	}
+}
+
+// A function that takes a trait as a parameter. Only types that implement the
+// trait can call this function.
+pub fn notify(item: &impl Summary) {
+	println!("Breaking news! {}", item.summarize());
 }
