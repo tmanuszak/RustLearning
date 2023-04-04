@@ -9,16 +9,20 @@ pub struct Config {
 
 impl Config {
 	// Returning a Config struct in Ok, or a static string wrapped around Err
-	pub fn build(args: &[String]) -> Result<Config, &'static str> {
-		if args.len() < 3 {
-			return Err("Not enough arguents.");
-		}
+	pub fn build(
+		mut args: impl Iterator<Item = String>,
+	) -> Result<Config, &'static str> {
+		args.next(); // Throwaway filename
 		
-		// The parameters are immutable borrows. 
-		// To instantiate the struct below, the struct needs to take ownership of
-		// a value, which we can't do unless we clone it.
-		let query = args[1].clone(); 
-		let file_path = args[2].clone();
+		let query = match args.next() {
+			Some(arg) => arg,
+			None => return Err("Didn't get a query string"),
+		};
+
+		let	file_path = match args.next() {
+			Some(arg) => arg,
+			None => return Err("Didn't get a file path"),
+		};
 
 		// "var" returns Ok() with contents of the value of the environment 
 		// variable, otherwise it will return Err() if the environment variable
@@ -55,15 +59,10 @@ pub fn run(config: Config) -> Result<(), Box<dyn Error>> {
 // We use lifetimes so that the compiler knows which string slice the returned
 // value will be referencing.
 pub fn search<'a>(query: &str, contents: &'a str) -> Vec<&'a str> {
-	let mut results = Vec::new();
-
-	for line in contents.lines() {
-		if line.contains(query) {
-			results.push(line);
-		}
-	}
-
-	results
+	contents
+		.lines()
+		.filter(|line| line.contains(query))
+		.collect()
 }
 
 pub fn search_case_insensitive<'a>(
@@ -73,16 +72,10 @@ pub fn search_case_insensitive<'a>(
 
 	// query is shadowed variable. It will be of type String, not str
 	let query = query.to_lowercase();
-	let mut results = Vec::new();
-
-	for line in contents.lines() {
-		// Need to add '&' because contains takes str types, not String
-		if line.to_lowercase().contains(&query) {
-			results.push(line);
-		}
-	}
-
-	results
+	contents
+		.lines()
+		.filter(|line| line.to_lowercase().contains(&query))
+		.collect()
 }
 
 #[cfg(test)]
