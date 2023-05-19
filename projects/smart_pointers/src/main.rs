@@ -1,3 +1,14 @@
+#![allow(unused)]
+
+// REASONS TO CHOOSE THE VARIOUS SMART POINTERS
+// - Rc<T> enables multiple owners of the same data; 
+//   Box<T> and RefCell<T> have single owners.
+// - Box<T> allows immutable or mutable borrows checked at compile time; 
+//   Rc<T> allows only immutable borrows checked at compile time; 
+//   RefCell<T> allows immutable or mutable borrows checked at runtime.
+// - Because RefCell<T> allows mutable borrows checked at runtime, you can 
+//   mutate the value inside the RefCell<T> even when the RefCell<T> is immutable.
+
 // ------------------------------------------------------------------------ //
 
 // For recursive types example
@@ -30,6 +41,74 @@ impl<T> Deref for MyBox<T> {
 	
 	fn deref(&self) -> &Self::Target {
 		&self.0
+	}
+}
+
+// ------------------------------------------------------------------------ //
+
+// Custom smart pointer for drop trait demonstrations
+struct CustomSmartPointer {
+	data: String,
+}
+
+impl Drop for CustomSmartPointer {
+	fn drop(&mut self) {
+		println!("Dropping CustomSmartPointer with data '{}'!", self.data);
+	}
+}
+
+use std::mem::drop;
+
+// ------------------------------------------------------------------------ //
+
+// FOR Rc POINTER DEMONSTRATION
+enum ListRc {
+	ConsRc(i32, Rc<ListRc>),
+	NilRc,
+}
+
+use crate::ListRc::{ConsRc, NilRc};
+use std::rc::Rc;
+
+// ------------------------------------------------------------------------ //
+
+// FOR RefCell POINTER DEMONSTRATION
+pub trait Messenger {
+	fn send(&self, msg: &str);
+}
+
+pub struct LimitTracker<'a, T: Messenger> {
+	messenger: &'a T,
+	value: usize,
+	max: usize,
+}
+
+impl<'a, T> LimitTracker<'a, T>
+where
+	T: Messenger,
+{
+	pub fn new(messenger: &'a T, max: usize) -> LimitTracker<'a, T> {
+		LimitTracker {
+			messenger,
+			value: 0,
+			max,
+		}
+	}
+	
+	pub fn set_value(&mut self, value: usize) {
+		self.value = value;
+
+		let percentage_of_max = self.value as f64 / self.max as f64;
+
+		if percentage_of_max >= 1.0 {
+			self.messenger.send("Error: You are over your quota!");
+		} else if percentage_of_max >= 0.9 {
+			self.messenger
+				.send("Urgent warning: You've used up over 90% of your quota!");
+		} else if percentage_of_max >= 0.75 {
+			self.messenger
+				.send("Warning: You've used up over 75% of your quota!");
+		}
 	}
 }
 
@@ -80,5 +159,37 @@ fn main() {
 	let y = MyBox::new(x);
 	assert_eq!(5, x);
 	assert_eq!(5, *y);	
+	
+	// DROP TRAIT DEMONSTRATIONS
+	{
+		let c = CustomSmartPointer {
+			data: String::from("my stuff"),
+		};
+		let d = CustomSmartPointer {
+			data: String::from("other stuff"),
+		};
+		let e = CustomSmartPointer {
+			data: String::from("some data"),
+		};
+		println!("CustomSmartPointers created.");
+		drop(e);  // Not allowed to call c.drop(), use this instead
+		println!("CustomSmartPointer dropped before the end of scope.");
+	}
+
+	// REFERENCE COUNTED POINTER
+	// The Rc<T> smart pointer type allowes a single value to have multiple 
+	// owners. It keep track of the number of owners and free the data when
+	// there are 0 owners.
+	// NOTE: it is only for use in single threaded scenarios.
+	// Creating two lists that take ownership of another list:
+	let a = Rc::new(ConsRc(5, Rc::new(ConsRc(10, Rc::new(NilRc)))));
+	println!("Count after creating a = {}", Rc::strong_count(&a));
+	let b = ConsRc(3, Rc::clone(&a));
+	println!("Count after creating b = {}", Rc::strong_count(&a));
+	{
+		let c = ConsRc(4, Rc::clone(&a));
+		println!("Count after creating c = {}", Rc::strong_count(&a));
+	}
+	println!("Count after c goes out of scope = {}", Rc::strong_count(&a));
 
 }
